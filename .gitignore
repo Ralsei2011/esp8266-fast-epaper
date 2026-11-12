@@ -25,6 +25,9 @@ media/
 *.png
 *.jpg
 
+# 位图字库（由 tools/gen_cn_font.py 从本机字体生成，不入库）
+cn_font.h
+
 # 厂商文档
 *.pdf
 

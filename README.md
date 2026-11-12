@@ -1,7 +1,15 @@
-# IL3820 墨水屏快刷实验：把 2.9 寸电子纸跑到 30fps
+# 2.9 寸电子纸快刷实验：单帧 9.18ms，30fps 播放 Bad Apple
 
-一块 2.9 寸 128×296 黑白电子纸（**IL3820** 控制器），出厂规格是全刷 1.65 秒、局刷 0.41 秒。
-本项目把它压到 **单帧 9.18 ms**，并在上面**以 30fps 连续播放 Bad Apple**。
+两块 2.9 寸电子纸，同一块 ESP8266 板子，两条独立的线：
+
+- **黑白线（IL3820）** —— 出厂单帧 412ms 压到 **9.18ms**（45×），上面跑通了 **30fps 的 Bad Apple**。
+  这条线做完了，本文档主体讲它。
+- **三色线（SSD1680）** —— 出厂全刷 27.2 秒压到 **5.1 秒**（5.3×），但单相快刷没打通，研究停在这里。
+  见 [`research/3color/`](research/3color/)。
+
+## 黑白线：IL3820
+
+出厂规格是全刷 1.65 秒、局刷 0.41 秒。
 
 | | 出厂 | 本项目 | 提升 |
 |---|---|---|---|
@@ -24,6 +32,7 @@
 - [固件二：epd_play（播放器）](#固件二epd_play播放器)
 - [性能实测数据](#性能实测数据)
 - [实验记录](#实验记录)
+- [另一条线：三色屏](#另一条线三色屏)
 - [已知限制](#已知限制)
 - [关于版权](#关于版权)
 
@@ -93,25 +102,33 @@ LUT 里每个 VS 字节描述 4 种像素转变各自的电平（2 bit：`00`=GN
 ## 仓库结构
 
 ```
-firmware/
-  epd_ctl/         脚本化探测台固件：烧一次，之后所有实验靠串口文本命令
-  epd_play/        播放器固件：收 RLE 帧包 → 解码 → 上传 → 刷新
+firmware/                   黑白线（IL3820）的可编译固件
+  epd_ctl/                  脚本化探测台：烧一次，之后所有实验靠串口文本命令
+  epd_play/                 播放器：收 RLE 帧包 → 解码 → 上传 → 刷新
+  epd_a01_probe/            30 档参数矩阵探测，每档打一行 CSV
+  epd_a01_fast/             快刷原理验证（单相 + 双向 + 持续升压）
+  epd_a01_anim/             早期连播实验，用来定位掉电与绘图越界
+  epd_region_test/          局刷窗口高度与耗时的关系
 driver/
-  exp_api.h        给 GxEPD2_290 追加的低层寄存器接口（声明宏 + ExpTiming）
-  exp_api.cpp      对应实现
+  exp_api.h                 给 GxEPD2_290 追加的低层寄存器接口（声明宏 + ExpTiming）
+  exp_api.cpp               对应实现
+research/3color/            三色线（SSD1680）的 21 个阶段性研究固件 + 独立说明
 tools/
-  build.py         一键编译（arduino-cli 封装）
-  flash.py         自动找 CH340 端口并烧录
-  epd.py           epd_ctl 的脚本驱动器（跑 scripts/*.epd，全程落日志）
-  probe_run.py     烧录 + 全程抓串口日志
-  badapple.py      prep（视频转 RLE 帧序列）/ play（推流 + 网页预览）
-  mkbadapple.py    早期版本的单文件转换器
-scripts/           t00..t25 共 26 个实验脚本，一个脚本对应一个问题
+  build.py                  一键编译（arduino-cli 封装，支持 firmware/ 与 research/）
+  flash.py                  自动找 CH340 端口并烧录
+  epd.py                    epd_ctl 的脚本驱动器（跑 scripts/*.epd，全程落日志）
+  probe_run.py              烧录 + 全程抓串口日志
+  badapple.py               prep（视频转 RLE 帧序列）/ play（推流 + 网页预览）
+  mkbadapple.py             早期版本的单文件转换器
+  gen_cn_font.py            从本机字体生成三色线用的点阵字库
+scripts/                    t00..t25 共 26 个实验脚本，一个脚本对应一个问题
 docs/
-  waveform.md      波形寄存器逐位说明
-  power-budget.md  电流预算与掉电定位过程
-  experiments.md   26 个实验的目的与结论
+  waveform.md               波形寄存器逐位说明
+  power-budget.md           电流预算与掉电定位过程
+  experiments.md            26 个实验的目的与结论
 ```
+
+`python tools/build.py --list` 会列出全部 27 个可编译的 sketch。
 
 ---
 
@@ -128,6 +145,7 @@ pip install pyserial numpy pillow imageio-ffmpeg
 - [arduino-cli](https://arduino.github.io/arduino-cli/) 放到 `tools/arduino-cli.exe`
 - ESP8266 core 3.1.2（`arduino-cli core install esp8266:esp8266 --additional-urls https://arduino.me/packages/esp8266.json`）
 - [GxEPD2](https://github.com/ZinggJM/GxEPD2) 库
+- `U8g2_for_Adafruit_GFX`、`Wire`（仅三色线的 `epd_ui_demo` / `epd_font_test` 需要）
 - `tools/cli-config.yaml`：复制 `tools/cli-config.example.yaml` 并改成你自己的路径
 
 ### 装上驱动扩展
@@ -147,6 +165,7 @@ public:
 ### 编译与烧录
 
 ```bash
+python tools/build.py --list               # 列出全部 27 个 sketch
 python tools/build.py epd_ctl              # 编译
 python tools/build.py epd_ctl --flash      # 编译并烧录
 python tools/build.py epd_ctl --clean      # 改了源码却像没生效时用这个
@@ -276,6 +295,34 @@ RLE 格式很朴素：`0x80|count` + 单字节（重复），或 `count` + 原�
 
 ---
 
+## 另一条线：三色屏
+
+同一块板子换上三色屏（SSD1680，黑白红）之后做的一组实验。完整说明、21 个固件的逐个用途
+都在 [`research/3color/`](research/3color/README.md)。**没做完**，放在这里是为了不重复踩同一个坑。
+
+出厂全刷 27.2 秒。已经拿到的数字：
+
+| 做法 | 全刷耗时 | 说明 |
+|---|---|---|
+| `0xF7` 基线（读温度传感器，室温 19℃） | 27173 ms | 出厂行为 |
+| `0xD7` + 100℃ 温度覆写 | **5116 ms** | 5.3×，代价是墨色发灰 |
+| `0xD7` + 65℃ | 11163 ms | 速度与观感的折中 |
+| `0xD7` + 10℃（反向对照） | 35429 ms | 比基线更慢 |
+
+两条能推广出去的结论：
+
+1. **温度覆写真的生效。** `0x1A` 写温度、`0x22=0xD7` 直接吃 OTP 里对应温度区间的波形，
+   不重读传感器。最容易忽略的是反向对照 —— 写 10℃ 反而比基线更慢，这排除了"数字被忽略"的可能。
+2. **局刷耗时只跟门线数走，跟面积无关。** 296×16 的细横带（面积 12.5%）要 5198ms，
+   144×128 的竖带（面积 48.6%）只要 3022ms，因为前者门线数是后者两倍。左右位置对调无影响。
+   实用推论：想局部刷得快，把窗口压成"矮而宽"，不是"小而方"。
+
+没打通的部分：三色屏找不到黑白线那种"单相快刷"路径。直接砍波形相数会导致红色不上色或黑红互串；
+改用黑白驱动（T94）刷三色屏虽然快，但红色粒子完全不动，残影消不掉。
+局刷约 3.0 秒、全刷 27.2 秒，这个比例决定三色屏目前只适合分钟级更新的场景。
+
+---
+
 ## 已知限制
 
 - **1bpp 无灰阶**：只有黑白两态，抗锯齿的内容二值化后线条会抖。
@@ -289,7 +336,8 @@ RLE 格式很朴素：`0x80|count` + 单字节（重复），或 `count` + 原�
 
 ## 关于版权
 
-这个仓库**只包含我自己写的代码**：固件、PC 端工具、实验脚本、文档。
+这个仓库**只包含我自己写的代码**：两条线共 27 个固件、PC 端工具、实验脚本、文档。
+第三方库、厂商手册、字体、视频素材都不入库，见下表。
 
 以下内容**刻意没有放进仓库**，请自行获取：
 
@@ -299,6 +347,7 @@ RLE 格式很朴素：`0x80|count` + 单字节（重复），或 `count` + 原�
 | ESP8266 Arduino core | 同上 | 见「快速开始」 |
 | IL3820 数据手册 | 厂商版权文档 | 从面板供应商处获取 |
 | Bad Apple 视频与转换出的帧数据 | 动画版权归原作者，且体积大 | 自行准备视频后跑 `tools/badapple.py prep` |
+| `cn_font.h`（三色线点阵字库） | 由本机字体（微软雅黑）生成，字体版权归厂商 | 跑 `tools/gen_cn_font.py` 自己生成 |
 
 `driver/exp_api.*` 里没有复制 GxEPD2 的任何代码，只调用它已有的受保护接口；
 集成方式是"加两行 + 放两个文件"，不修改库的原文件。
