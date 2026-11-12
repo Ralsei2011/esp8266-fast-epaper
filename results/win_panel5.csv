@@ -1,0 +1,9 @@
+﻿panel,step,start_s,dur_ms,expect
+5,S1_FULL_BLACK,4.5,5119,整屏黑
+5,S2_BOTTOM_WHITE_y148,19.8,5119,下半屏变白，上半屏保持黑
+5,S3_FULL_BLACK,35.1,5119,整屏黑
+5,S4_LEFT_WHITE_x0w64,46.4,5119,左半边（宽 64px）变白，右半保持黑
+5,S5_FULL_BLACK,61.7,5119,整屏黑
+5,S6_GDR148_BOTTOM_y148,72.9,2941,预期：无变化（扫描只到 gate147）
+5,S7_GDR148_TOP_y0,86.0,2941,上半屏变白
+5,S8_FULL_WHITE,99.2,5119,整屏白

@@ -7,6 +7,7 @@
     python tools/build.py epd_ctl
     python tools/build.py epd_play --flash
     python tools/build.py epd_wave_abc --clean      # 强制全量重编
+    python tools/build.py epd_play --fs 16M14M      # 换过更大 flash 的板子
 
 为什么需要它：
   1. 自动在 firmware/ 和 research/3color/ 下定位 sketch，不用记路径；
@@ -25,7 +26,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ARDUINO_CLI = ROOT / "tools" / "arduino-cli.exe"
 CONFIG = ROOT / "tools" / "cli-config.yaml"
-FQBN = "esp8266:esp8266:generic:eesz=4M2M"
+
+# flash 容量与文件系统划分。默认按最常见的 4MB NodeMCU 板。
+# eesz 的完整取值见 `arduino-cli board details -b esp8266:esp8266:generic`：
+#   4M2M   = 4MB flash + 2MB FS + OTA 约 1MB（默认）
+#   4M3M   = 4MB flash + 3MB FS，OTA 只剩 512KB
+#   16M14M = 16MB flash + 14MB FS，OTA 约 1MB
+# 换过 flash 芯片的板子必须改这一项，否则固件头里写的容量和实际芯片对不上。
+DEFAULT_FS = "4M2M"
 
 
 SKETCH_ROOTS = (ROOT, ROOT / "firmware", ROOT / "research" / "3color")
@@ -57,7 +65,11 @@ def main():
     ap.add_argument("--flash", action="store_true", help="编译完直接烧录")
     ap.add_argument("--clean", action="store_true", help="先删 build 目录，强制全量重编")
     ap.add_argument("--baud", default="460800", help="烧录波特率")
+    ap.add_argument("--fs", default=DEFAULT_FS,
+                    help=f"flash 容量/文件系统划分，默认 {DEFAULT_FS}；换过 flash 芯片的板子要改")
     args = ap.parse_args()
+
+    fqbn = f"esp8266:esp8266:generic:eesz={args.fs}"
 
     if args.list:
         for d in list_sketches():
@@ -72,7 +84,15 @@ def main():
     build_path = ROOT / "build" / f"{name}_default"
     out_path = ROOT / "build" / f"{name}_default_out"
 
-    if args.clean:
+    # 换了 --fs 就必须全量重编：同一个 build 目录里缓存的 .o 是按旧容量编的，
+    # 直接复用会让编译器在链接阶段崩掉（Windows 上是 0xc0000005 访问违例，
+    # 看起来像代码错误，其实是缓存脏了）。用标记文件自动判断。
+    marker = build_path / ".eesz"
+    stale = marker.is_file() and marker.read_text().strip() != args.fs
+    if stale:
+        print(f"[i] flash 配置从 {marker.read_text().strip()} 变成 {args.fs}，清缓存全量重编")
+
+    if args.clean or stale:
         for d in (build_path, out_path):
             shutil.rmtree(d, ignore_errors=True)
         print("[i] 已清空 build 缓存")
@@ -80,7 +100,7 @@ def main():
     cmd = [
         str(ARDUINO_CLI), "compile",
         "--config-file", str(CONFIG),
-        "--fqbn", FQBN,
+        "--fqbn", fqbn,
         "--build-path", str(build_path),
         "--output-dir", str(out_path),
         "-j", "0",
@@ -89,6 +109,9 @@ def main():
     rc = subprocess.call(cmd)
     if rc != 0:
         sys.exit("[x] 编译失败")
+
+    build_path.mkdir(parents=True, exist_ok=True)
+    marker.write_text(args.fs)
 
     bins = list(out_path.glob("*.bin"))
     if not bins:
