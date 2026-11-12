@@ -1,0 +1,109 @@
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      sketches:
+        description: '要编译的 sketch 名（空格分隔）。留空 = 编译全部'
+        required: false
+        default: ''
+  push:
+    paths:
+      - 'firmware/**'
+      - 'research/**'
+      - 'driver/**'
+      - 'tools/patch_gxepd2.py'
+      - '.github/workflows/build.yml'
+
+# 三色线的 epd_font_test 依赖 cn_font.h（本机字体生成，不入库），CI 里跳过
+env:
+  SKIP: epd_font_test
+  CORE_VERSION: '3.1.2'
+  GXEPD2_VERSION: '1.6.9'
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: gen
+        run: |
+          set -euo pipefail
+          WANT="${{ github.event.inputs.sketches }}"
+          if [ -z "$WANT" ]; then
+            WANT=$(find firmware research -name '*.ino' -printf '%h\n' | xargs -n1 basename | sort | tr '\n' ' ')
+          fi
+          LIST=""
+          for s in $WANT; do
+            [ "$s" = "${SKIP}" ] && { echo "::notice::跳过 $s（需本机生成 cn_font.h）"; continue; }
+            LIST="$LIST $s"
+          done
+          JSON=$(printf '%s\n' $LIST | jq -R . | jq -s -c .)
+          echo "matrix=$JSON" >> "$GITHUB_OUTPUT"
+          echo "本次编译：$LIST"
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        sketch: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    name: ${{ matrix.sketch }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 缓存 ESP8266 core
+        uses: actions/cache@v4
+        with:
+          path: ~/.arduino15
+          key: ard-${{ runner.os }}-esp8266-${{ env.CORE_VERSION }}
+
+      - name: 安装 arduino-cli
+        uses: arduino/setup-arduino-cli@v1
+
+      - name: 安装 ESP8266 core
+        run: |
+          arduino-cli config init --overwrite >/dev/null
+          arduino-cli config add board_manager.additional_urls \
+            https://arduino.esp8266.com/stable/package_esp8266com_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp8266:esp8266@${{ env.CORE_VERSION }}
+
+      - name: 取依赖库（固定版本，保证可复现）
+        run: |
+          mkdir -p libs
+          git clone --depth 1 --branch ${{ env.GXEPD2_VERSION }} \
+            https://github.com/ZinggJM/GxEPD2.git libs/GxEPD2
+          git clone --depth 1 \
+            https://github.com/olikraus/U8g2_for_Adafruit_GFX.git libs/U8g2_for_Adafruit_GFX
+
+      - name: 注入驱动扩展
+        run: python3 tools/patch_gxepd2.py --lib libs/GxEPD2
+
+      - name: 编译 ${{ matrix.sketch }}
+        run: |
+          set -euo pipefail
+          NAME="${{ matrix.sketch }}"
+          DIR=$(dirname "$(find firmware research -type d -name "$NAME" | head -1)")
+          echo "路径: $DIR/$NAME"
+          arduino-cli compile \
+            --fqbn esp8266:esp8266:generic:eesz=4M2M \
+            --libraries libs \
+            --build-path "build/$NAME" \
+            --output-dir "out/$NAME" \
+            --warnings default \
+            "$DIR/$NAME"
+          ls -l "out/$NAME"
+
+      - name: 上传固件
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ matrix.sketch }}
+          path: out/${{ matrix.sketch }}/*.bin
+          if-no-files-found: error
+          retention-days: 30

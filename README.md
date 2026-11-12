@@ -150,7 +150,7 @@ pip install pyserial numpy pillow imageio-ffmpeg
 
 ### 装上驱动扩展
 
-把 `driver/exp_api.h`、`driver/exp_api.cpp` 拷进 `GxEPD2/src/epd/`，然后在 `GxEPD2_290.h` 里加两行：
+手工方式：把 `driver/exp_api.h`、`driver/exp_api.cpp` 拷进 `GxEPD2/src/epd/`，然后在 `GxEPD2_290.h` 里加两行：
 
 ```cpp
 #include "exp_api.h"        // 放在 class 声明之前
@@ -160,7 +160,11 @@ public:
   EPD_EXP_DECLS             // 放在 public 区
 ```
 
-库原有代码一行都不用改。
+库原有代码一行都不用改。或者直接跑脚本，它做的是一模一样的事，而且幂等：
+
+```bash
+python tools/patch_gxepd2.py --lib <你的 GxEPD2 路径>
+```
 
 ### 编译与烧录
 
@@ -175,6 +179,21 @@ python tools/build.py epd_ctl --clean      # 改了源码却像没生效时用�
 
 > **注意**：arduino-cli 的增量缓存有时不拾取改动，烧完看着像"新固件没生效"。
 > 这个坑踩过多次，所以给 `build.py` 加了 `--clean`。
+
+### 在 GitHub 上编译（不用配本地环境）
+
+改驱动库会触发 ESP8266 全量重编，本机一次 4~6 分钟。仓库带了 workflow，可以扔给云端：
+
+- 推送到 `firmware/`、`research/`、`driver/` 会自动触发
+- 也可以 Actions → **build** → **Run workflow** 手动触发，填 sketch 名（空格分隔），留空编全部
+- 产物在运行页面底部 Artifacts，下载 `bin-<sketch>.zip` 解压得到 `.bin`，用 `tools/flash.py` 烧
+
+CI 做的事情和本地一样：装 core 3.1.2 → 取固定版本 GxEPD2 1.6.9 与 U8g2_for_Adafruit_GFX →
+跑 `tools/patch_gxepd2.py` 注入驱动扩展 → 逐个编译。`epd_font_test` 会被跳过，
+因为它依赖本机字体生成的 `cn_font.h`。
+
+> 首次运行要下载 ESP8266 core（约 3~4 分钟），之后的运行有缓存，单个 sketch 约 40 秒。
+> 云端省的是「改一行库就要全量重编」的时间，代价是产物要手动下载回来烧。
 
 ### 播放
 
