@@ -1,0 +1,70 @@
+# 区域刷矩阵 8 步，对应旧固件 epd_3c_win 的 S1~S8
+# 每步刷完停 8 秒供肉眼观察
+# TRIG 的参数是数字，0xF7 = OTP 全刷波形（约 5.1 秒）
+
+# S1 整屏黑，建立参照
+FULL
+GDR 296
+PAT 1 0 0
+UP
+TRIG 0xF7
+DELAY 8000
+
+# S2 只刷下半屏（窗口 y=148），GDR 仍是 296
+#    预期：下半变白，上半保持黑 -> 证明窗口可以放在任意 y
+PAT 0 0 0
+WIN 0 148 128 148
+UP
+TRIG 0xF7
+DELAY 8000
+
+# S3 只刷上半屏并推黑，恢复整屏黑底
+PAT 1 0 0
+WIN 0 0 128 148
+UP
+TRIG 0xF7
+DELAY 8000
+
+# S4 只刷左半屏（x=0 w=64 全高）
+#    预期：左侧竖带变白 -> 证明 x 方向窗口正常，与横竖无关
+PAT 0 0 0
+WIN 0 0 64 296
+UP
+TRIG 0xF7
+DELAY 8000
+
+# S5 GDR 砍到 148 + 窗口在下半屏
+#    预期：完全无变化 -> GDR 只决定扫多少行，扫描起点固定 gate 0
+PAT 0 0 0
+GDR 148
+WIN 0 148 128 148
+UP
+TRIG 0xF7
+DELAY 8000
+
+# S6 GDR 148 + 窗口在上半屏
+#    预期：上半变白 -> 落在扫描范围内的窗口正常
+WIN 0 0 128 148
+UP
+TRIG 0xF7
+DELAY 8000
+
+# S7 恢复 GDR，整屏推黑后只刷中心块
+GDR 296
+FULL
+PAT 1 0 0
+UP
+TRIG 0xF7
+DELAY 8000
+
+PAT 0 0 0
+WIN 32 120 64 64
+UP
+TRIG 0xF7
+DELAY 8000
+
+# S8 收尾整屏白，方便收屏保存
+FULL
+PAT 0 0 0
+UP
+TRIG 0xF7
