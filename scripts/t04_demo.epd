@@ -1,0 +1,50 @@
+# t04_demo.epd —— 纯白 → 静态参考 → 分段连续动画 → 收白
+# 已知硬件限制：连续刷新约 80 帧（≈3.5s）必然 USB 掉电，
+# 所以切成 18 帧一段、段间停 250ms。
+
+ver
+wash 3
+sleep 800
+
+# 静态参考图：左边黑块 + 右边棋盘，判断白底干净度和对比度
+clr 1
+rect 20 100 8 56 0
+rect 150 250 70 120 0
+rect 30 90 70 120 0
+up both
+lut full
+gate 8 26
+mux 296
+cp
+scan 6000
+sleep 1500
+
+# 动画 A：sumTP=4 → 单帧 38.1ms ≈ 26fps，gap 0，最流畅
+wash 2
+lut wave 4 1
+gate 0 0
+mux 296
+cp
+anim 4 1 18 0 0
+sleep 250
+anim 4 1 18 0 18
+sleep 250
+anim 4 1 18 0 36
+sleep 250
+anim 4 1 18 0 54
+sleep 250
+anim 4 1 18 0 72
+sleep 600
+
+# 动画 B：sumTP=6 → 单帧 56.6ms ≈ 18fps，墨色更实，看残影差异
+lut wave 6 1
+gate 0 0
+mux 296
+cp
+anim 6 1 18 0 0
+sleep 250
+anim 6 1 18 0 18
+sleep 600
+
+# 收白
+wash 3

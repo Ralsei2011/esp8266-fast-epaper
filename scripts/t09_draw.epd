@@ -1,0 +1,31 @@
+# t09_draw.epd —— 逐项排除 anim 的绘图代码
+# 第 6 个参数是绘图选项：0=只清屏，1=只画竖条，2=只画圆，3=两个都画
+
+ver
+bb
+
+# D0) 只清屏，完全不画
+wash 2
+anim 4 1 150 0 0 0
+sleep 1500
+bb
+
+# D1) 只画移动竖条
+wash 2
+anim 4 1 150 0 0 1
+sleep 1500
+bb
+
+# D2) 只画弹跳圆（含 sin/sqrt 浮点运算）
+wash 2
+anim 4 1 150 0 0 2
+sleep 1500
+bb
+
+# D3) 两个都画（原来会挂的组合）
+wash 2
+anim 4 1 150 0 0 3
+sleep 1500
+bb
+
+wash 2

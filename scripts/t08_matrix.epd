@@ -1,0 +1,32 @@
+# t08_matrix.epd —— 四组对照，定位 anim 一上来就掉电的触发条件
+# 判读：哪一组能跑满 100 帧，就说明那一组的差异就是原因
+
+ver
+bb
+
+# T1) wash 之后直接 anim（不预先 cp）
+wash 2
+anim 4 1 100 0 0
+sleep 2000
+bb
+
+# T2) 先 cp 再 anim（复现之前的写法）
+wash 2
+cp
+anim 4 1 100 0 0
+sleep 2000
+bb
+
+# T3) fstart=1（跳过 f=0 那一帧）
+wash 2
+anim 4 1 100 0 1
+sleep 2000
+bb
+
+# T4) blink 100 帧（全屏最大翻转，作为对照）
+wash 2
+blink 100 0
+sleep 2000
+bb
+
+wash 2

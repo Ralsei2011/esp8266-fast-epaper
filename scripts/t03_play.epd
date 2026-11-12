@@ -1,0 +1,37 @@
+# t03_play.epd —— 擦成纯白 → 静态图 → 长动画 → 收白
+# 用途：让人眼判断"白不白"和"动画流不流畅"
+
+ver
+# 1) 彻底刷白
+wash 3
+sleep 500
+
+# 2) 静态参考图：左上黑块 + 中间棋盘，用来判断对比度和残影
+clr 1
+rect 20 120 10 60 0
+rect 140 260 70 120 0
+rect 30 110 70 120 0
+up fast
+lut full
+gate 8 26
+mux 296
+cp
+scan 6000
+sleep 1000
+
+# 3) 长动画 sumTP=4，gap=6（约 44ms/帧 ≈ 22fps）
+wash 2
+lut wave 4 1
+gate 0 0
+mux 296
+cp
+anim 4 1 80 6
+sleep 800
+
+# 4) 长动画 sumTP=6，gap=10（约 66ms/帧 ≈ 15fps，墨色更实）
+lut wave 6 1
+anim 6 1 48 10
+sleep 800
+
+# 5) 收白
+wash 3

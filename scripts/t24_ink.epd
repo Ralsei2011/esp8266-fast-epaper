@@ -1,0 +1,13 @@
+# t24_ink.epd —— 双向波形 + 逐级加长驱动，找墨色/功耗平衡点
+# 最后一档会停在屏上（TP=3 的圆），看它够不够黑
+ver
+wash 2
+lut vs 18 1
+gate 0 0
+mux 296
+cp
+anim -1 0 90 0 0 2 1
+lut vs 18 2
+anim -1 0 90 0 0 2 1
+lut vs 18 3
+anim -1 0 90 0 0 2 1

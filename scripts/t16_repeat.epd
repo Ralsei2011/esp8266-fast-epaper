@@ -1,0 +1,31 @@
+# t16_repeat.epd —— 同一图案连做两次，判断是「内容相关」还是「时间随机」
+# A=全宽6行(之前必挂)   B=半宽6行(之前必活)
+
+ver
+
+# A1
+wash 2
+anim 4 1 150 0 0 1 0
+sleep 1200
+
+# A2（完全相同的命令）
+wash 2
+anim 4 1 150 0 0 1 0
+sleep 1200
+
+# B1
+wash 2
+anim 4 1 150 0 0 4 0
+sleep 1200
+
+# B2（完全相同）
+wash 2
+anim 4 1 150 0 0 4 0
+sleep 1200
+
+# A3
+wash 2
+anim 4 1 150 0 0 1 0
+sleep 1000
+
+wash 2

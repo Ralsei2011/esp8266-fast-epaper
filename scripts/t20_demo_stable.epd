@@ -1,0 +1,40 @@
+# t20_demo_stable.epd —— 稳定配置演示：sumTP=1，94fps，长跑不掉电
+ver
+
+# 1) 刷白
+wash 3
+sleep 1000
+
+# 2) 静态参考图（判断白底和对比度）
+clr 1
+rect 20 100 8 56 0
+rect 150 250 70 120 0
+rect 30 90 70 120 0
+up both
+lut full
+gate 8 26
+mux 296
+cp
+scan 6000
+sleep 2500
+
+# 3) sumTP=1 动画，94fps，连续 1200 帧 ≈ 12.7 秒
+wash 2
+lut wave 1 1
+gate 0 0
+mux 296
+cp
+anim 1 1 600 0 0 3
+anim 1 1 600 0 600 3
+sleep 1200
+
+# 4) 同样 94fps，但只画圆（更省，供对比墨色）
+wash 2
+lut wave 1 1
+gate 0 0
+mux 296
+cp
+anim 1 1 900 0 0 2
+sleep 1000
+
+wash 3

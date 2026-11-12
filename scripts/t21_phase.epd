@@ -1,0 +1,24 @@
+# t21_phase.epd —— 波形相位数 vs 双向性（能否擦掉旧位置）
+ver
+# 先彻底洗白
+wash 2
+
+# === phases=1 sumTP=1 ===
+anim 1 1 150 0 0 4 1
+
+# === phases=2 sumTP=2 ===
+anim 2 1 150 0 0 4 1
+
+# === phases=3 sumTP=3 ===
+anim 3 1 150 0 0 4 1
+
+# === phases=4 sumTP=4 ===
+anim 4 1 150 0 0 4 1
+
+# === phases=5 sumTP=5 ===
+anim 5 1 150 0 0 4 1
+
+# === phases=7 sumTP=7 ===
+anim 7 1 150 0 0 4 1
+
+wash 2

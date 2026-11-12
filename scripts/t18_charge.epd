@@ -1,0 +1,24 @@
+# t18_charge.epd —— 固定最坏图案（全宽6行横条），只改驱动电荷量 sumTP
+ver
+
+# N1) sumTP = 1（每帧只驱动 1 个 TP，电荷 1/4）
+wash 2
+anim 1 1 120 0 0 1 0 127
+sleep 900
+
+# N2) sumTP = 2
+wash 2
+anim 2 1 120 0 0 1 0 127
+sleep 900
+
+# N3) sumTP = 3
+wash 2
+anim 3 1 120 0 0 1 0 127
+sleep 900
+
+# N4) sumTP = 4（原条件，已知必挂）
+wash 2
+anim 4 1 120 0 0 1 0 127
+sleep 900
+
+wash 2

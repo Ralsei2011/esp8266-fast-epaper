@@ -1,0 +1,9 @@
+ver
+heap
+clr 1
+rect 40 250 20 108 0
+up slow
+up fast
+up fast
+heap
+scan 2000

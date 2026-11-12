@@ -1,0 +1,23 @@
+# t13_vcc.epd —— 逐帧记录 VCC，看复位前电压是否塌陷
+ver
+vcc
+bb
+sleep 300
+
+# 静态电压
+vcc
+sleep 200
+
+# H1) 竖条（已知会挂）—— 看挂之前 VCC 掉到多少
+wash 2
+anim 4 1 300 0 0 1 0
+sleep 1500
+
+# H2) 圆（已知没事）—— 作为 VCC 基线
+vcc
+wash 2
+anim 4 1 100 0 0 2 0
+sleep 1000
+vcc
+
+wash 2

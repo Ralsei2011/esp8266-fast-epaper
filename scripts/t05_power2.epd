@@ -1,0 +1,42 @@
+# t05_power2.epd —— 量化「帧间隔 vs 能连续播多少帧」
+# 每段都播到掉电为止，A 行里最后一个帧号就是它撑住的极限。
+
+ver
+wash 2
+
+# 1) gap = 0
+lut wave 4 1
+gate 0 0
+mux 296
+cp
+anim 4 1 130 0 0
+sleep 1500
+
+# 2) gap = 8ms
+wash 2
+lut wave 4 1
+gate 0 0
+mux 296
+cp
+anim 4 1 130 8 0
+sleep 1500
+
+# 3) gap = 20ms
+wash 2
+lut wave 4 1
+gate 0 0
+mux 296
+cp
+anim 4 1 130 20 0
+sleep 1500
+
+# 4) gap = 40ms
+wash 2
+lut wave 4 1
+gate 0 0
+mux 296
+cp
+anim 4 1 130 40 0
+sleep 1200
+
+wash 2

@@ -1,0 +1,32 @@
+# t02_power.epd —— 找"不触发 USB 掉电"的帧间隔
+# 每档连刷 20 帧，看哪一档不掉线（日志里出现 rst cause / READY 就是掉过）
+
+ver
+wash 2
+lut wave 4 1
+gate 0 0
+mux 296
+cp
+
+# gap=0   预期 ~38ms/帧，很可能会掉电
+anim 4 1 20 0
+sleep 800
+
+# gap=4
+anim 4 1 20 4
+sleep 800
+
+# gap=10
+anim 4 1 20 10
+sleep 800
+
+# gap=20
+anim 4 1 20 20
+sleep 800
+
+# sumTP=6 + gap=10
+lut wave 6 1
+anim 6 1 16 10
+sleep 800
+
+wash 2

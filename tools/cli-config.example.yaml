@@ -1,0 +1,18 @@
+# arduino-cli 配置模板
+#
+# 用法：
+#   1. 复制成 tools/cli-config.yaml
+#   2. 把下面的 <PROJECT_ROOT> 换成你的仓库绝对路径
+#      （Windows 用正斜杠，例如 C:/work/il3820-fast）
+
+board_manager:
+  additional_urls:
+    - https://arduino.me/packages/esp8266.json
+
+directories:
+  data: <PROJECT_ROOT>/ardata
+  downloads: <PROJECT_ROOT>/ardata/staging
+  user: <PROJECT_ROOT>/ardata/user
+
+logging:
+  level: info

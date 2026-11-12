@@ -1,0 +1,66 @@
+# t01_bringup.epd —— 上电自检：擦屏 / 白底 / 时基 / 上传速度 / 动画流畅度
+# 用法：python tools/epd.py run scripts/t01_bringup.epd
+
+ver
+heap
+
+# ---------- 1. 擦屏，刷成纯白 ----------
+# 库的 clearScreen 走标准全刷流程（会重新初始化 0x01/0x3A/0x3B），擦得干净
+wash 2
+sleep 400
+
+# 再用出厂全刷波形走一遍 0x04，确认白底
+lut full
+gate 8 26
+mux 296
+cp
+clr 1
+up slow
+scan 6000
+sleep 600
+
+# ---------- 2. 上传速度：慢路径 vs 快路径 ----------
+clr 1
+rect 40 250 20 108 0
+up slow
+up fast
+up fast
+heap
+
+# ---------- 3. 时基：sumTP 1/2/4/8，gate=0 dummy=0 ----------
+lut wave 1 1
+gate 0 0
+mux 296
+cp
+clr 1
+bar 0
+up fast
+scan 2000
+
+lut wave 2 1
+scan 2000
+
+lut wave 4 1
+scan 2000
+
+lut wave 7 1
+scan 2000
+
+clr 1
+rect 40 250 20 108 0
+up fast
+scan 4000
+sleep 800
+
+# ---------- 4. 动画：sumTP=4（36.7ms/帧）----------
+lut wave 4 1
+anim 4 1 24 0
+sleep 600
+
+# ---------- 5. 动画：sumTP=2（18.4ms/帧）----------
+lut wave 2 1
+anim 2 1 24 0
+sleep 600
+
+# ---------- 6. 收尾：干净的全刷白 ----------
+wash 2
