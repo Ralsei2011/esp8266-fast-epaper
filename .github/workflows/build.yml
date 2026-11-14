@@ -77,44 +77,48 @@ jobs:
 
       - name: 安装 ESP8266 core
         run: |
-          set -uo pipefail
+          # 注意：GitHub 的默认 shell 自带 -e，必须显式 set +e，
+          # 否则大括号块里第一条失败的命令就终止整个 step，后面的诊断代码根本跑不到。
+          set +e
           LOG=/tmp/core-install.log
           {
-            echo "--- version ---"
+            echo "=== version ==="
             arduino-cli version
-            echo "--- config init ---"
+            echo "=== config init ==="
             arduino-cli config init --overwrite
+            echo "=== config add ==="
             arduino-cli config add board_manager.additional_urls \
               https://arduino.esp8266.com/stable/package_esp8266com_index.json
-            echo "--- config dump ---"
+            echo "=== config dump ==="
             arduino-cli config dump
-            echo "--- update-index ---"
-            arduino-cli --verbose core update-index
-            echo "--- 卸载旧 core（不存在则忽略）---"
-            arduino-cli core uninstall esp8266:esp8266 || true
-            echo "--- 安装 core ---"
-            arduino-cli --verbose core install esp8266:esp8266@${{ env.CORE_VERSION }}
+            echo "=== update-index ==="
+            arduino-cli core update-index
+            echo "update-index rc=$?"
+            echo "=== 清理旧 core ==="
+            arduino-cli core uninstall esp8266:esp8266
+            echo "uninstall rc=$?"
+            echo "=== install ==="
+            arduino-cli core install esp8266:esp8266@${{ env.CORE_VERSION }}
+            echo "install rc=$?"
           } > "$LOG" 2>&1
           rc=$?
+          echo "===== core 安装日志（末尾 40 行）====="
+          tail -40 "$LOG"
           if [ $rc -ne 0 ]; then
-            echo "===== core 安装失败，最后 40 行 ====="
-            tail -40 "$LOG"
-            tail -4 "$LOG" | while IFS= read -r l; do
+            # 末尾 8 行写进 annotation，可通过 check-runs/{id}/annotations 的 API 读到
+            tail -8 "$LOG" | while IFS= read -r l; do
               l="${l//::/ }"
               l="${l//%/%25}"
               printf '::error title=core-install::%s\n' "${l:0:180}"
             done
             exit 1
           fi
-          echo "--- 已安装的平台 ---"
-          arduino-cli core list
           PLATFORM="$HOME/.arduino15/packages/esp8266/hardware/esp8266/${{ env.CORE_VERSION }}"
           if [ ! -f "$PLATFORM/boards.txt" ]; then
-            printf '::error title=core-install::core 安装不完整，缺少 %s/boards.txt\n' "$PLATFORM"
+            printf '::error title=core-install::缺少 %s/boards.txt\n' "$PLATFORM"
             exit 1
           fi
-          echo "--- generic 板的 Flash Size 选项 ---"
-          arduino-cli board details -b esp8266:esp8266:generic | grep -i -A3 'eesz' | head -20
+          arduino-cli core list
 
       - name: 取依赖库（固定版本，保证可复现）
         run: |
