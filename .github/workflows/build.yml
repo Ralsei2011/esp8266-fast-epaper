@@ -161,14 +161,20 @@ jobs:
             echo "===== 编译成功 ====="
             ls -l "out/$NAME"
           else
-            echo "===== 编译失败，最后 40 行 ====="
-            tail -40 "$LOG"
-            # 把末尾几行写进 annotation，这样不用登录也能通过 check-runs API 读到
-            tail -4 "$LOG" | while IFS= read -r l; do
+            echo "===== 编译失败 ====="
+            # 只截末尾没用：arduino-cli 最后几行是 "Used platform / Version / Path" 的表格。
+            # 主动抓 error 行，抓不到再退回末尾。
+            grep -aiE "error:|fatal error:|No such file|undefined reference|not found" "$LOG" \
+              | head -6 > /tmp/errs.txt || true
+            if [ ! -s /tmp/errs.txt ]; then
+              tail -6 "$LOG" > /tmp/errs.txt
+            fi
+            cat /tmp/errs.txt
+            while IFS= read -r l; do
               l="${l//::/ }"
               l="${l//%/%25}"
               printf '::error title=%s::%s\n' "$NAME" "${l:0:180}"
-            done
+            done < /tmp/errs.txt
             exit 1
           fi
 
