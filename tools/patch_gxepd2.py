@@ -64,6 +64,50 @@ def patch_header(path: Path) -> str:
     return "已插入 include + EPD_EXP_DECLS"
 
 
+def patch_3c(lib: Path, check_only: bool) -> None:
+    """三色屏 GxEPD2_290_C90c：整文件覆盖。
+
+    黑白线（IL3820）只加两行 include + 宏就够了，但 C90c 这边新增了 7 个低层接口
+    （setFastTemp/setUpdateMode/setGateLines/expActivate/expWriteLut/expSetRamArea/
+    expWriteRam），还改了 _Update_Full/_Update_Part 的 0x22 下发逻辑，逐行注入不现实。
+    driver/3c/ 里放的是基于 GxEPD2 1.6.9 改好的完整文件，直接覆盖。
+
+    早期版本漏了这一步，导致 CI 上所有三色固件报：
+        'class GxEPD2_290_C90c' has no member named 'setFastTemp'
+    """
+    src_dir = ROOT / "driver" / "3c"
+    dst_dir = lib / "src" / "epd3c"
+    names = ("GxEPD2_290_C90c.h", "GxEPD2_290_C90c.cpp")
+
+    if not dst_dir.is_dir():
+        print(f"[!] 跳过三色注入：{dst_dir} 不存在（这个 GxEPD2 版本可能没有 C90c）")
+        return
+
+    for name in names:
+        if not (src_dir / name).is_file():
+            sys.exit(f"[x] 三色驱动源文件缺失：{src_dir / name}")
+
+    if check_only:
+        text = (dst_dir / names[0]).read_text(encoding="utf-8")
+        if "setFastTemp" not in text:
+            print("[!] 三色驱动尚未注入")
+            sys.exit(1)
+        print("[=] 三色驱动已注入")
+        return
+
+    for name in names:
+        shutil.copy2(src_dir / name, dst_dir / name)
+    print(f"[+] 覆盖三色驱动 {len(names)} 个文件 -> {dst_dir}")
+
+    # 覆盖完立刻验证，别让"看起来成功但没生效"再发生一次
+    text = (dst_dir / names[0]).read_text(encoding="utf-8")
+    missing = [m for m in ("setFastTemp", "setUpdateMode", "setGateLines",
+                           "expActivate", "expSetRamArea", "expWriteRam")
+               if m not in text]
+    if missing:
+        sys.exit(f"[x] 三色注入不完整，缺少：{missing}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--lib", required=True, help="GxEPD2 库根目录，例如 libs/GxEPD2")
@@ -76,13 +120,16 @@ def main():
     if not header.is_file():
         sys.exit(f"[x] 找不到 {header}，--lib 指向的是 GxEPD2 根目录吗？")
 
+    # 三色屏先处理：它是本项目的主线，黑白屏那条是早期实验
+    patch_3c(lib, args.check)
+
     text = header.read_text(encoding="utf-8")
     if MARK_INCLUDE in text and MARK_DECLS in text:
-        print(f"[=] {lib} 已经注入过")
+        print(f"[=] {lib} 黑白驱动已经注入过")
         return
 
     if args.check:
-        print(f"[!] {lib} 尚未注入")
+        print(f"[!] {lib} 黑白驱动尚未注入")
         sys.exit(1)
 
     for name in ("exp_api.h", "exp_api.cpp"):
@@ -92,8 +139,12 @@ def main():
         shutil.copy2(src, target_dir / name)
     print(f"[+] 复制 exp_api.h / exp_api.cpp -> {target_dir}")
 
-    print(f"[+] {patch_header(header)}")
-    print("[i] 完成。库原文件只有 GxEPD2_290.h 被加了两行，其余未动。")
+    # 黑白驱动注入失败不该拖累三色固件：主线走的是 C90c，这条是早期 IL3820 实验用的
+    try:
+        print(f"[+] {patch_header(header)}")
+    except SystemExit as e:
+        print(f"[!] 黑白驱动注入跳过（不影响三色固件）：{e}")
+    print("[i] 完成。")
 
 
 if __name__ == "__main__":
