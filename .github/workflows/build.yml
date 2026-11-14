@@ -57,48 +57,87 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # key 带 v3：旧的 ard-Linux-esp8266-3.1.2 缓存可能是不完整安装，
+      # 会让 core install 误判"已装"而秒过，之后 compile 直接报 platform not found。
       - name: 缓存 ESP8266 core
         uses: actions/cache@v4
         with:
           path: ~/.arduino15
-          key: ard-${{ runner.os }}-esp8266-${{ env.CORE_VERSION }}
+          key: ard-${{ runner.os }}-esp8266-${{ env.CORE_VERSION }}-v3
 
       - name: 安装 arduino-cli
         uses: arduino/setup-arduino-cli@v1
 
       - name: 安装 ESP8266 core
         run: |
-          arduino-cli config init --overwrite >/dev/null
+          set -euo pipefail
+          arduino-cli version
+          arduino-cli config init --overwrite
           arduino-cli config add board_manager.additional_urls \
             https://arduino.esp8266.com/stable/package_esp8266com_index.json
           arduino-cli core update-index
+          # 缓存可能残缺：先卸掉再装，避免"已安装"误判
+          arduino-cli core uninstall esp8266:esp8266 || true
           arduino-cli core install esp8266:esp8266@${{ env.CORE_VERSION }}
+          echo "--- 已安装的平台 ---"
+          arduino-cli core list
+          PLATFORM="$HOME/.arduino15/packages/esp8266/hardware/esp8266/${{ env.CORE_VERSION }}"
+          test -f "$PLATFORM/boards.txt" \
+            || { echo "::error::core 安装不完整，缺少 $PLATFORM/boards.txt"; exit 1; }
+          echo "--- generic 板的 Flash Size 选项 ---"
+          arduino-cli board details -b esp8266:esp8266:generic | grep -i -A3 'eesz' | head -20
 
       - name: 取依赖库（固定版本，保证可复现）
         run: |
+          set -euo pipefail
+          rm -rf libs
           mkdir -p libs
           git clone --depth 1 --branch ${{ env.GXEPD2_VERSION }} \
             https://github.com/ZinggJM/GxEPD2.git libs/GxEPD2
           git clone --depth 1 \
             https://github.com/olikraus/U8g2_for_Adafruit_GFX.git libs/U8g2_for_Adafruit_GFX
+          ls -1 libs
 
       - name: 注入驱动扩展
-        run: python3 tools/patch_gxepd2.py --lib libs/GxEPD2
+        run: |
+          set -euo pipefail
+          python3 tools/patch_gxepd2.py --lib libs/GxEPD2
 
       - name: 编译 ${{ matrix.sketch }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           NAME="${{ matrix.sketch }}"
-          DIR=$(dirname "$(find firmware research -type d -name "$NAME" | head -1)")
-          echo "路径: $DIR/$NAME"
-          arduino-cli compile \
-            --fqbn esp8266:esp8266:generic:eesz=4M2M \
-            --libraries libs \
-            --build-path "build/$NAME" \
-            --output-dir "out/$NAME" \
-            --warnings default \
-            "$DIR/$NAME"
-          ls -l "out/$NAME"
+          # 不用 find | head -1：pipefail 下 find 收到 SIGPIPE 会让赋值失败并静默退出
+          DIR=$(dirname "$(find firmware research -type d -name "$NAME" -print -quit)")
+          echo "sketch 路径: $DIR/$NAME"
+          if [ ! -d "$DIR/$NAME" ] || [ ! -f "$DIR/$NAME/$NAME.ino" ]; then
+            echo "::error title=$NAME::找不到 sketch 目录或 $NAME.ino"
+            exit 1
+          fi
+          # arduino-cli 不保证会创建这两级目录，缺了会立刻失败（表现为 0 秒退出）
+          mkdir -p "build/$NAME" "out/$NAME"
+
+          LOG="/tmp/build-$NAME.log"
+          if arduino-cli compile \
+               --fqbn esp8266:esp8266:generic:eesz=4M2M \
+               --libraries libs \
+               --build-path "$PWD/build/$NAME" \
+               --output-dir "$PWD/out/$NAME" \
+               --warnings default \
+               "$DIR/$NAME" > "$LOG" 2>&1; then
+            echo "===== 编译成功 ====="
+            ls -l "out/$NAME"
+          else
+            echo "===== 编译失败，最后 40 行 ====="
+            tail -40 "$LOG"
+            # 把末尾几行写进 annotation，这样不用登录也能通过 check-runs API 读到
+            tail -4 "$LOG" | while IFS= read -r l; do
+              l="${l//::/ }"
+              l="${l//%/%25}"
+              printf '::error title=%s::%s\n' "$NAME" "${l:0:180}"
+            done
+            exit 1
+          fi
 
       - name: 上传固件
         uses: actions/upload-artifact@v4
