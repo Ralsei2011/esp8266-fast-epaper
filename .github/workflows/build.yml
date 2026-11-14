@@ -122,14 +122,36 @@ jobs:
 
       - name: 取依赖库（固定版本，保证可复现）
         run: |
-          set -euo pipefail
+          # 这套固件在本机编译时依赖 10 个库，CI 早期版本只拉了 GxEPD2 和
+          # U8g2_for_Adafruit_GFX，漏了 Adafruit_GFX，于是 GxEPD2_3C.h 里
+          # #include <Adafruit_GFX.h> 直接 fatal error。
+          set +e
           rm -rf libs
           mkdir -p libs
-          git clone --depth 1 --branch ${{ env.GXEPD2_VERSION }} \
-            https://github.com/ZinggJM/GxEPD2.git libs/GxEPD2
-          git clone --depth 1 \
-            https://github.com/olikraus/U8g2_for_Adafruit_GFX.git libs/U8g2_for_Adafruit_GFX
+          clone() {
+            url="$1"; dir="$2"; ref="$3"
+            if [ -n "$ref" ]; then
+              git clone --depth 1 --branch "$ref" "$url" "libs/$dir"
+            else
+              git clone --depth 1 "$url" "libs/$dir"
+            fi
+            if [ $? -ne 0 ]; then
+              echo "::warning::依赖 $dir 拉取失败：$url"
+            fi
+          }
+          clone https://github.com/ZinggJM/GxEPD2.git GxEPD2 "${{ env.GXEPD2_VERSION }}"
+          clone https://github.com/adafruit/Adafruit-GFX-Library.git Adafruit_GFX_Library
+          clone https://github.com/adafruit/Adafruit_BusIO.git Adafruit_BusIO
+          clone https://github.com/olikraus/U8g2_for_Adafruit_GFX.git U8g2_for_Adafruit_GFX
+          clone https://github.com/bblanchon/ArduinoJson.git ArduinoJson
+          clone https://github.com/jwrw/ESP_EEPROM.git ESP_EEPROM
+          clone https://github.com/arduino-libraries/NTPClient.git NTPClient
+          clone https://github.com/khoih-prog/ESP8266TimerInterrupt.git ESP8266TimerInterrupt
+          clone https://github.com/closedcube/ClosedCube_SHT31D.git ClosedCube_SHT31D
+          echo "=== 已取到的库 ==="
           ls -1 libs
+          test -f libs/Adafruit_GFX_Library/Adafruit_GFX.h \
+            || { printf '::error title=deps::缺少 Adafruit_GFX.h\n'; exit 1; }
 
       - name: 注入驱动扩展
         run: |
