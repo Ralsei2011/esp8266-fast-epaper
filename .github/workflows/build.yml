@@ -20,6 +20,9 @@ env:
   SKIP: epd_font_test
   CORE_VERSION: '3.1.2'
   GXEPD2_VERSION: '1.6.9'
+  # 基础设施排查模式：1 = push 时只编一个固件探路（省 CI 时间），
+  # 0 = 编译全部。等 CI 稳定后改成 0。
+  CI_QUICK: '1'
 
 jobs:
   plan:
@@ -32,6 +35,10 @@ jobs:
         run: |
           set -euo pipefail
           WANT="${{ github.event.inputs.sketches }}"
+          if [ -z "$WANT" ] && [ "${CI_QUICK}" = "1" ]; then
+            WANT="epd_demo"
+            echo "::notice::CI_QUICK=1，本次只编译 epd_demo 探路"
+          fi
           if [ -z "$WANT" ]; then
             WANT=$(find firmware research -name '*.ino' -printf '%h\n' | xargs -n1 basename | sort | tr '\n' ' ')
           fi
@@ -70,20 +77,42 @@ jobs:
 
       - name: 安装 ESP8266 core
         run: |
-          set -euo pipefail
-          arduino-cli version
-          arduino-cli config init --overwrite
-          arduino-cli config add board_manager.additional_urls \
-            https://arduino.esp8266.com/stable/package_esp8266com_index.json
-          arduino-cli core update-index
-          # 缓存可能残缺：先卸掉再装，避免"已安装"误判
-          arduino-cli core uninstall esp8266:esp8266 || true
-          arduino-cli core install esp8266:esp8266@${{ env.CORE_VERSION }}
+          set -uo pipefail
+          LOG=/tmp/core-install.log
+          {
+            echo "--- version ---"
+            arduino-cli version
+            echo "--- config init ---"
+            arduino-cli config init --overwrite
+            arduino-cli config add board_manager.additional_urls \
+              https://arduino.esp8266.com/stable/package_esp8266com_index.json
+            echo "--- config dump ---"
+            arduino-cli config dump
+            echo "--- update-index ---"
+            arduino-cli --verbose core update-index
+            echo "--- 卸载旧 core（不存在则忽略）---"
+            arduino-cli core uninstall esp8266:esp8266 || true
+            echo "--- 安装 core ---"
+            arduino-cli --verbose core install esp8266:esp8266@${{ env.CORE_VERSION }}
+          } > "$LOG" 2>&1
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            echo "===== core 安装失败，最后 40 行 ====="
+            tail -40 "$LOG"
+            tail -4 "$LOG" | while IFS= read -r l; do
+              l="${l//::/ }"
+              l="${l//%/%25}"
+              printf '::error title=core-install::%s\n' "${l:0:180}"
+            done
+            exit 1
+          fi
           echo "--- 已安装的平台 ---"
           arduino-cli core list
           PLATFORM="$HOME/.arduino15/packages/esp8266/hardware/esp8266/${{ env.CORE_VERSION }}"
-          test -f "$PLATFORM/boards.txt" \
-            || { echo "::error::core 安装不完整，缺少 $PLATFORM/boards.txt"; exit 1; }
+          if [ ! -f "$PLATFORM/boards.txt" ]; then
+            printf '::error title=core-install::core 安装不完整，缺少 %s/boards.txt\n' "$PLATFORM"
+            exit 1
+          fi
           echo "--- generic 板的 Flash Size 选项 ---"
           arduino-cli board details -b esp8266:esp8266:generic | grep -i -A3 'eesz' | head -20
 
