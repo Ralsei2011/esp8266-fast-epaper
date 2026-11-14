@@ -150,8 +150,14 @@ jobs:
           clone https://github.com/closedcube/ClosedCube_SHT31D.git ClosedCube_SHT31D
           echo "=== 已取到的库 ==="
           ls -1 libs
-          test -f libs/Adafruit_GFX_Library/Adafruit_GFX.h \
-            || { printf '::error title=deps::缺少 Adafruit_GFX.h\n'; exit 1; }
+          # 新版 Adafruit GFX 用 1.5 库规范，头文件在 src/ 下而不是库根，
+          # arduino-cli 会自动把 src/ 加进 include path，所以这里只检查文件存在，
+          # 不要假设具体层级。
+          if ! find libs -name 'Adafruit_GFX.h' -print -quit | grep -q .; then
+            printf '::error title=deps::整个 libs 里没找到 Adafruit_GFX.h\n'
+            exit 1
+          fi
+          find libs -name 'Adafruit_GFX.h' -print -quit
 
       - name: 注入驱动扩展
         run: |
